@@ -60,7 +60,7 @@ static const mp_rom_map_elem_t board_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_LCD_RST), MP_ROM_PTR(&pin_GPIO20) },
     { MP_ROM_QSTR(MP_QSTR_DISPLAY_RST), MP_ROM_PTR(&pin_GPIO20) },
     { MP_ROM_QSTR(MP_QSTR_MISO), MP_ROM_PTR(&pin_GPIO20) }, // Default SPI
-    
+
     { MP_ROM_QSTR(MP_QSTR_GP21), MP_ROM_PTR(&pin_GPIO21) }, // Pin 24
     { MP_ROM_QSTR(MP_QSTR_GP22), MP_ROM_PTR(&pin_GPIO22) }, // Pin 25
     { MP_ROM_QSTR(MP_QSTR_GP23), MP_ROM_PTR(&pin_GPIO23) }, // Pin 22
