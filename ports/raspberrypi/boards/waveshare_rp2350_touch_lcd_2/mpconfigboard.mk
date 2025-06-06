@@ -1,5 +1,5 @@
 USB_VID = 0x2E8A
-USB_PID = 0x10B4
+USB_PID = 0x10D9
 USB_PRODUCT = "Waveshare RP2350-Touch-LCD-2"
 USB_MANUFACTURER = "Waveshare Electronics"
 
