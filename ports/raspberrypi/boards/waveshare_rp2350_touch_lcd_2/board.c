@@ -1,90 +1,86 @@
 // This file is part of the CircuitPython project: https://circuitpython.org
 //
-// SPDX-FileCopyrightText: Copyright (c) 2021 Scott Shawcroft for Adafruit Industries
+// SPDX-FileCopyrightText: Copyright (c) 2024 Adafruit Industries LLC
 //
 // SPDX-License-Identifier: MIT
 
 #include "supervisor/board.h"
-#include "mpconfigboard.h"
-#include "shared-bindings/displayio/__init__.h"
-#include "shared-module/displayio/FourWire.h"
-#include "shared-bindings/busio/SPI.h"
-#include "shared-bindings/microcontroller/Pin.h"
 
-// Generic ST7789 init sequence
+
+#include "mpconfigboard.h"
+#include "shared-module/displayio/__init__.h"
+#include "shared-module/displayio/mipi_constants.h"
+#include "shared-bindings/board/__init__.h"
+
+#define DELAY 0x80
+
+
+// display init sequence according to https://github.com/adafruit/Adafruit_CircuitPython_ST7789
 uint8_t display_init_sequence[] = {
-    0x01, 0x80, 0x96, // Software reset with 150ms delay
-    0x11, 0x80, 0xff, // Sleep out with 255ms delay
-    0x3A, 0x01, 0x55, // COLMOD: Interface Pixel Format, 16bits/pixel
-    0x36, 0x01, 0x00, // MADCTL: Memory Data Access Control, Page/Column Address Order, MX, MY, MV, ML, BGR, MH
-                      // Row Address Order (MY) = 0 (Top to Bottom)
-                      // Column Address Order (MX) = 0 (Left to Right)
-                      // Page/Column Order (MV) = 0 (Normal)
-                      // Line Address Order (ML) = 0 (Top to Bottom)
-                      // Color Order (BGR) = 0 (RGB)
-                      // Display Data Latch Order (MH) = 0 (Left to Right)
-    0x21, 0x00,       // INVON: Display Inversion On (typically off for ST7789, but some modules need it)
-    // 0x20, 0x00,    // INVOFF: Display Inversion Off
-    0x13, 0x00,       // NORON: Normal Display Mode On
-    0x29, 0x80, 0xff, // DISPON: Display On with 255ms delay
+    0x01, 0 | DELAY, 0x96,  // _SWRESET and Delay 150ms
+    0x11, 0 | DELAY, 0xFF,  // _SLPOUT and Delay 500ms
+    0x3A, 0x81, 0x55, 0x0A,  // _COLMOD and Delay 10ms
+    0x36, 0x01, 0x08,  // _MADCTL
+    0x21, 0 | DELAY, 0x0A,  // _INVON Hack and Delay 10ms
+    0x13, 0 | DELAY, 0x0A,  // _NORON and Delay 10ms
+    0x36, 0x01, 0xC0,  // _MADCTL
+    0x29, 0 | DELAY, 0xFF,  // _DISPON and Delay 500ms
 };
 
-// This is for the display bus
-displayio_fourwire_obj_t board_display_obj;
+static void display_init(void) {
 
-void board_init(void) {
-    // Display
-    busio_spi_obj_t *spi = common_hal_board_get_spi();
-    displayio_fourwire_obj_t *bus = &board_display_obj;
-    bus->base.type = &displayio_fourwire_type;
+    busio_spi_obj_t *spi = common_hal_board_create_spi(0);
+    fourwire_fourwire_obj_t *bus = &allocate_display_bus()->fourwire_bus;
 
-    common_hal_displayio_fourwire_construct(
+    bus->base.type = &fourwire_fourwire_type;
+
+    common_hal_fourwire_fourwire_construct(
         bus,
         spi,
-        CIRCUITPY_DISPLAY_SCK,    // CLK
-        CIRCUITPY_DISPLAY_MOSI,   // MOSI
-        NULL,                     // MISO (not used by display typically)
-        CIRCUITPY_DISPLAY_DC,     // DC
-        CIRCUITPY_DISPLAY_CS,     // CS
-        CIRCUITPY_DISPLAY_RST,    // RST
-        CIRCUITPY_DISPLAY_BL,     // BL, can be NULL if not used or controlled differently
-        60000000,                 // Baudrate (RP2040/RP2350 can often go this high for ST7789)
-        0,                        // Polarity
-        0                         // Phase
+        CIRCUITPY_DISPLAY_DC,  // TFT_DC
+        CIRCUITPY_DISPLAY_CS,  // TFT_CS
+        CIRCUITPY_DISPLAY_RST,  // TFT_RST
+        50000000, // Baudrate
+        0, // Polarity
+        0 // Phase
+
         );
 
-    // This is the display object
-    displayio_display_obj_t *display = common_hal_displayio_allocate_display(bus, display_init_sequence, sizeof(display_init_sequence));
+    busdisplay_busdisplay_obj_t *display = &allocate_display()->display;
+    display->base.type = &busdisplay_busdisplay_type;
 
-    common_hal_displayio_display_construct(
+    common_hal_busdisplay_busdisplay_construct(
         display,
         bus,
-        CIRCUITPY_DISPLAY_WIDTH,  // Width
-        CIRCUITPY_DISPLAY_HEIGHT, // Height
-        0,                        // column_offset
-        0,                        // row_offset
+        240, // Width
+        320, // Height
+        53, // column start
+        40, // row start
         CIRCUITPY_DISPLAY_ROTATION, // rotation
-        16,                       // color_depth
-        false,                    // grayscale
-        false,                    // pixels_in_byte_share_row
-        1,                        // bytes_per_cell
-        false,                    // reverse_pixels_in_byte
-        true,                     // reverse_pixels_in_word
-        0x2A,                     // set_column_command
-        0x2B,                     // set_row_command
-        0x2C,                     // write_ram_command
-        NULL,                     // set_vertical_scroll_command
-        NULL,                     // set_vertical_scroll_start_command
-        false,                    // backbuffer
-        true                      // auto_refresh
+        16, // Color depth
+        false, // Grayscale
+        false, // Pixels in a byte share a row
+        1, // bytes per cell
+        false, // reverse_pixels_in_byte
+        true, // reverse_pixels_in_word
+        MIPI_COMMAND_SET_COLUMN_ADDRESS, // set column command
+        MIPI_COMMAND_SET_PAGE_ADDRESS, // set row command
+        MIPI_COMMAND_WRITE_MEMORY_START, // write memory command
+        display_init_sequence,
+        sizeof(display_init_sequence),
+        CIRCUITPY_DISPLAY_BL, // backlight pin
+        NO_BRIGHTNESS_COMMAND,
+        1.0f, // brightness
+        false, // single_byte_bounds
+        false, // data_as_commands
+        true, // auto_refresh
+        60, // native_frames_per_second
+        true, // backlight_on_high
+        false, // SH1107_addressing
+        1000 // backlight pwm frequency
         );
 }
 
-// Use the MP_WEAK supervisor/shared/board.c versions of routines not defined here.
-// If board_reset is not defined here, the common one will be used.
-// void board_reset(void) {
-//    // Reset code.
-// }
-
-// Before the display is used, `common_hal_displayio_release_displays()` will be called to free the display object.
-// After a soft reset, this `board_init` will be called again.
+void board_init(void) {
+    display_init();
+}
