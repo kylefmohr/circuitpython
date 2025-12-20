@@ -1,5 +1,5 @@
 USB_VID = 0x303A
-USB_PID = 0x7099 # todo: update to correct PID
+USB_PID = 0x7099
 USB_PRODUCT = "Waveshare-ESP32-P4-WIFI6"
 USB_MANUFACTURER = "Espressif"
 
